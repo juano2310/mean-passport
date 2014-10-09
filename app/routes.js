@@ -1,9 +1,17 @@
 module.exports = function(app, passport) {
 
 // normal routes ===============================================================
-
+  
+	app.get('/', isLoggedIn, function(req, res) {
+		res.sendfile('./public/index.html'); // load the single view file (angular will handle the page changes on the front-end)
+	});    
+  
+  app.get('/home', isLoggedIn, function(req, res) {
+		res.sendfile('./public/access.html'); // load the single view file (angular will handle the page changes on the front-end)
+	});  
+  
 	// show the home page (will also have our login links)
-	app.get('/', function(req, res) {
+	app.get('/auth', isnotLoggedIn, function(req, res) {
 		res.render('index.ejs');
 	});
 
@@ -20,6 +28,68 @@ module.exports = function(app, passport) {
 		res.redirect('/');
 	});
 
+  
+// =============================================================================
+// API =========================================================================
+// =============================================================================
+
+  // load up the user model
+  var Access       = require('../app/models/access');  
+  
+	// get all todos
+	app.get('/api/access', isLoggedIn, function(req, res) {
+
+		// use mongoose to get all access in the database
+		Access.find(function(err, access) {
+
+			// if there is an error retrieving, send the error. nothing after res.send(err) will execute
+			if (err)
+				res.send(err)
+
+			res.json(access); // return all access in JSON format
+		});
+	});
+
+	// create todo and send back all access after creation
+	app.post('/api/access', isLoggedIn, function(req, res) {
+    var user = req.user;
+		// create an access, information comes from AJAX request from Angular
+		Access.create({
+      user_id : user._id,
+			access_point : req.body.text,
+      datetime : new Date(),
+			done : false
+		}, function(err, access) {
+			if (err)
+				res.send(err);
+
+			// get and return all the access after you create another
+			Access.find(function(err, access) {
+				if (err)
+					res.send(err)
+				res.json(access);
+			});
+		});
+
+	});
+
+	// delete a todo
+	app.delete('/api/access/:todo_id', isLoggedIn, function(req, res) {
+		Access.remove({
+			_id : req.params.todo_id
+		}, function(err, todo) {
+			if (err)
+				res.send(err);
+
+			// get and return all the todos after you modified the list 
+			Access.find(function(err, todos) {
+				if (err)
+					res.send(err)
+				res.json(todos);
+			});
+		});
+	});
+    
 // =============================================================================
 // AUTHENTICATE (FIRST LOGIN) ==================================================
 // =============================================================================
@@ -27,13 +97,13 @@ module.exports = function(app, passport) {
 	// locally --------------------------------
 		// LOGIN ===============================
 		// show the login form
-		app.get('/login', function(req, res) {
+		app.get('/login', isnotLoggedIn, function(req, res) {
 			res.render('login.ejs', { message: req.flash('loginMessage') });
 		});
 
 		// process the login form
 		app.post('/login', passport.authenticate('local-login', {
-			successRedirect : '/profile', // redirect to the secure profile section
+			successRedirect : '/home', // redirect to the secure profile section
 			failureRedirect : '/login', // redirect back to the signup page if there is an error
 			failureFlash : true // allow flash messages
 		}));
@@ -46,7 +116,7 @@ module.exports = function(app, passport) {
 
 		// process the signup form
 		app.post('/signup', passport.authenticate('local-signup', {
-			successRedirect : '/profile', // redirect to the secure profile section
+			successRedirect : '/home', // redirect to the secure profile section
 			failureRedirect : '/signup', // redirect back to the signup page if there is an error
 			failureFlash : true // allow flash messages
 		}));
@@ -59,8 +129,8 @@ module.exports = function(app, passport) {
 		// handle the callback after facebook has authenticated the user
 		app.get('/auth/facebook/callback',
 			passport.authenticate('facebook', {
-				successRedirect : '/profile',
-				failureRedirect : '/'
+				successRedirect : '/home',
+				failureRedirect : '/auth'
 			}));
 
 	// twitter --------------------------------
@@ -71,8 +141,8 @@ module.exports = function(app, passport) {
 		// handle the callback after twitter has authenticated the user
 		app.get('/auth/twitter/callback',
 			passport.authenticate('twitter', {
-				successRedirect : '/profile',
-				failureRedirect : '/'
+				successRedirect : '/home',
+				failureRedirect : '/auth'
 			}));
 
 
@@ -84,8 +154,8 @@ module.exports = function(app, passport) {
 		// the callback after google has authenticated the user
 		app.get('/auth/google/callback',
 			passport.authenticate('google', {
-				successRedirect : '/profile',
-				failureRedirect : '/'
+				successRedirect : '/home',
+				failureRedirect : '/auth'
 			}));
 
 // =============================================================================
@@ -111,7 +181,7 @@ module.exports = function(app, passport) {
 		app.get('/connect/facebook/callback',
 			passport.authorize('facebook', {
 				successRedirect : '/profile',
-				failureRedirect : '/'
+				failureRedirect : '/auth'
 			}));
 
 	// twitter --------------------------------
@@ -123,7 +193,7 @@ module.exports = function(app, passport) {
 		app.get('/connect/twitter/callback',
 			passport.authorize('twitter', {
 				successRedirect : '/profile',
-				failureRedirect : '/'
+				failureRedirect : '/auth'
 			}));
 
 
@@ -136,7 +206,7 @@ module.exports = function(app, passport) {
 		app.get('/connect/google/callback',
 			passport.authorize('google', {
 				successRedirect : '/profile',
-				failureRedirect : '/'
+				failureRedirect : '/auth'
 			}));
 
 // =============================================================================
@@ -187,9 +257,17 @@ module.exports = function(app, passport) {
 };
 
 // route middleware to ensure user is logged in
+function isnotLoggedIn(req, res, next) {
+	if (!req.isAuthenticated())
+		return next();
+
+	res.redirect('/');
+}
+
+// route middleware to ensure user is logged in
 function isLoggedIn(req, res, next) {
 	if (req.isAuthenticated())
 		return next();
 
-	res.redirect('/');
+	res.redirect('/auth');
 }

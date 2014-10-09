@@ -22,6 +22,7 @@ mongoose.connect(configDB.url); // connect to our database
 require('./config/passport')(passport); // pass passport for configuration
 
 // set up our express application
+app.use(express.static(__dirname + '/public')); 				// set the static files location /public/img will be /img for users
 app.use(morgan('dev')); // log every request to the console
 app.use(cookieParser()); // read cookies (needed for auth)
 app.use(bodyParser.json()); // get information from html forms
